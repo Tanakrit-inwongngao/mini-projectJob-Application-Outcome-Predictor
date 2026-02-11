@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Metrics</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>ตัวชี้วัด (Metrics)</h1>
+    <p class="muted">เลือกโมเดลเพื่อดู Accuracy / Macro-F1 / Classification Report</p>
+
+    <div class="card">
+      <div class="field" style="max-width:420px;">
+        <label for="modelSelect">เลือกโมเดล:</label>
+        <select id="modelSelect"></select>
+      </div>
+
+      <div class="metricsGrid">
+        <div class="metricBox">
+          <div class="metricTitle">Accuracy</div>
+          <div id="acc" class="metricValue">-</div>
+        </div>
+        <div class="metricBox">
+          <div class="metricTitle">Macro-F1</div>
+          <div id="mf1" class="metricValue">-</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:14px;">Classification Report</h3>
+      <pre id="report" class="prebox">-</pre>
+      <h3 style="margin-top:14px;">Confusion Matrix</h3>
+      <div id="cmWrap" class="cmWrap muted">-</div>
+
+      <h3 style="margin-top:14px;">รายคลาส (Per-class)</h3>
+      <div id="perClassWrap" class="muted">-</div>
+
+      <h3 style="margin-top:14px;">ประวัติการพัฒนา (History)</h3>
+      <div id="historyWrap" class="muted">-</div>
+    </div>
+
+    <div class="footer">
+      <a href="/">← กลับหน้า Predict</a> · <a href="/docs" target="_blank">API Docs</a> · <a href="/health" target="_blank">Health</a>
+    </div>
+  </div>
+
+  <script>
+    const modelSelect = document.getElementById("modelSelect");
+
+    async function fetchModels() {
+      const res = await fetch("/api/models");
+      const data = await res.json();
+      const models = data.models || [];
+
+      modelSelect.innerHTML = "";
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        modelSelect.appendChild(opt);
+      }
+
+      const preferred = models.includes("best_model_job_app") ? "best_model_job_app" : (models[0] || "");
+      if (preferred) modelSelect.value = preferred;
+
+      if (modelSelect.value) await loadMetrics(modelSelect.value);
+    }
+
+
+    function _escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function _maxInMatrix(m) {
+      let mx = 0;
+      for (const row of m) for (const v of row) mx = Math.max(mx, Number(v) || 0);
+      return mx || 1;
+    }
+
+    function renderConfusionMatrixTable(cm, labels, { asPercent = false } = {}) {
+      if (!cm || !Array.isArray(cm) || cm.length === 0) {
+        return '<p class="muted">ยังไม่มี confusion_matrix ใน metrics.json</p>';
+      }
+
+      const L = (labels && Array.isArray(labels) && labels.length) ? labels : cm.map((_, i) => `class_${i}`);
+      const mx = _maxInMatrix(cm);
+
+      const head = `<thead><tr><th class="cmCorner">Actual \\ Pred</th>${L.map(x => `<th>${_escapeHtml(x)}</th>`).join("")}</tr></thead>`;
+
+      const bodyRows = cm.map((row, i) => {
+        const cells = row.map((v) => {
+          const num = Number(v) || 0;
+          const val = asPercent ? (num * 100).toFixed(1) + "%" : String(num);
+
+          const strength = Math.min(1, (Number(v) || 0) / mx);
+          const alpha = 0.06 + strength * 0.28;
+          const style = `background: rgba(94, 220, 255, ${alpha.toFixed(3)});`;
+
+          return `<td class="cmCell" style="${style}">${_escapeHtml(val)}</td>`;
+        }).join("");
+
+        return `<tr><th class="cmRowHead">${_escapeHtml(L[i] ?? `class_${i}`)}</th>${cells}</tr>`;
+      }).join("");
+
+      return `<table class="cmTable">${head}<tbody>${bodyRows}</tbody></table>`;
+    }
+
+    function normalizePerClass(perClassObj) {
+      if (!perClassObj || typeof perClassObj !== "object") return null;
+
+      const skipKeys = new Set(["accuracy", "macro avg", "weighted avg"]);
+      const out = {};
+
+      for (const [k, v] of Object.entries(perClassObj)) {
+        if (skipKeys.has(k)) continue;
+        if (!v || typeof v !== "object") continue;
+
+        const precision = v.precision ?? null;
+        const recall = v.recall ?? null;
+        const f1 = (v.f1_score ?? v["f1-score"]) ?? null;
+        const support = v.support ?? null;
+
+        const hasAny = [precision, recall, f1, support].some(x => x !== null && x !== undefined && x !== "");
+        if (!hasAny) continue;
+
+        out[k] = { precision, recall, f1_score: f1, support };
+      }
+
+      return Object.keys(out).length ? out : null;
+    }
+
+    function renderPerClassTable(perClassObj) {
+      const per = normalizePerClass(perClassObj);
+      if (!per) return '<p class="muted">ยังไม่มี per_class ใน metrics.json</p>';
+
+      const fmt = (x) => {
+        const n = Number(x);
+        return Number.isFinite(n) ? n.toFixed(3) : "-";
+      };
+
+      const rows = Object.entries(per).map(([cls, m]) => `
+        <tr>
+          <td>${_escapeHtml(cls)}</td>
+          <td class="num">${_escapeHtml(fmt(m.precision))}</td>
+          <td class="num">${_escapeHtml(fmt(m.recall))}</td>
+          <td class="num">${_escapeHtml(fmt(m.f1_score))}</td>
+          <td class="num">${_escapeHtml((m.support ?? "-").toString())}</td>
+        </tr>
+      `).join("");
+
+      return `
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Class</th>
+              <th class="num">Precision</th>
+              <th class="num">Recall</th>
+              <th class="num">F1</th>
+              <th class="num">Support</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function renderHistory(data) {
+      let raw = data?.history ?? null;
+      let items = [];
+
+      if (Array.isArray(raw)) {
+        items = raw.map(x => {
+          if (typeof x === "string") return { date: "", action: x, detail: "" };
+          if (x && typeof x === "object") {
+            return {
+              date: x.date || x.when || "",
+              action: x.action || x.title || x.what || "",
+              detail: x.detail || x.note || x.desc || "",
+            };
+          }
+          return { date: "", action: String(x), detail: "" };
+        });
+      } else if (typeof raw === "string" && raw.trim()) {
+        items = raw.split("\n").map(s => s.trim()).filter(Boolean).map(s => ({ date: "", action: s, detail: "" }));
+      }
+
+      if (!items.length) {
+        items = [
+          { date: "2026-02-11", action: "เพิ่ม Confusion Matrix", detail: "แสดงตาราง + heat background จาก metrics.json" },
+          { date: "2026-02-11", action: "เพิ่มรายคลาส (Per-class)", detail: "precision/recall/f1/support จาก per_class หรือ report_dict" },
+          { date: "2026-02-11", action: "เพิ่ม History", detail: "อ่านจาก metrics.json key: history/development_history/changelog" },
+        ];
+      }
+
+      return `
+        <ul class="historyList">
+          ${items.map(it => `
+            <li class="historyItem">
+              ${it.date ? `<span class="historyDate">${_escapeHtml(it.date)}</span>` : ""}
+              ${it.action ? `<div class="historyAction">${_escapeHtml(it.action)}</div>` : ""}
+              ${it.detail ? `<div class="historyDetail muted">${_escapeHtml(it.detail)}</div>` : ""}
+            </li>
+          `).join("")}
+        </ul>
+      `;
+    }
+
+    async function loadMetrics(modelKey) {
+      const res = await fetch(`/api/metrics?model=${encodeURIComponent(modelKey)}`);
+      const data = await res.json();
+
+      document.getElementById("acc").textContent =
+        (data.accuracy === null || data.accuracy === undefined) ? "-" : Number(data.accuracy).toFixed(4);
+
+      document.getElementById("mf1").textContent =
+        (data.macro_f1 === null || data.macro_f1 === undefined) ? "-" : Number(data.macro_f1).toFixed(4);
+
+      const rep = data.classification_report;
+      document.getElementById("report").textContent =
+        (rep === null || rep === undefined) ? "-" :
+        (typeof rep === "string" ? rep : JSON.stringify(rep, null, 2));
+
+      // ---- Confusion Matrix ----
+      const cmWrap = document.getElementById("cmWrap");
+      if (cmWrap) {
+        const labels = data.labels;
+        const cm = data.confusion_matrix;
+        const cmn = data.confusion_matrix_normalized;
+
+        if (!cm) {
+          cmWrap.innerHTML = '<p class="muted">ยังไม่มี confusion_matrix ใน metrics.json</p>';
+        } else {
+          let html = '';
+          html += `<div class="cmBlock">${renderConfusionMatrixTable(cm, labels, { asPercent: false })}</div>`;
+          if (cmn) {
+            html += `<p class="muted" style="margin:10px 0 6px;">Normalized (เปอร์เซ็นต์)</p>`;
+            html += `<div class="cmBlock">${renderConfusionMatrixTable(cmn, labels, { asPercent: true })}</div>`;
+          }
+          cmWrap.innerHTML = html;
+          cmWrap.classList.remove("muted");
+        }
+      }
+
+      // ---- Per-class ----
+      const perWrap = document.getElementById("perClassWrap");
+      if (perWrap) {
+        perWrap.innerHTML = renderPerClassTable(data.per_class);
+        perWrap.classList.remove("muted");
+      }
+
+      // ---- History ----
+      const hWrap = document.getElementById("historyWrap");
+      if (hWrap) {
+        hWrap.innerHTML = renderHistory(data);
+        hWrap.classList.remove("muted");
+      }
+    }
+
+    modelSelect.addEventListener("change", async () => {
+      if (modelSelect.value) await loadMetrics(modelSelect.value);
+    });
+
+    fetchModels();
+  </script>
+</body>
+</html>

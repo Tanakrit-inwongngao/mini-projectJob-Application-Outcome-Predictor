@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job Application Outcome Predictor</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+  <div class="container">
+
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-form">1) ฟอร์ม</button>
+      <button class="tab-btn" data-tab="tab-result">2) ผลลัพธ์</button>
+      <button class="tab-btn" data-tab="tab-chart">3) Probability Chart</button>
+    </div>
+
+    <!-- TAB 1 -->
+    <section id="tab-form" class="tab-panel active">
+
+      <!-- Form -->
+      <form class="card grid" onsubmit="return false;">
+        <div class="field" style="grid-column: 1 / -1; max-width: 420px;">
+          <label for="predictModelSelect">เลือกโมเดลสำหรับ Predict:</label>
+          <select id="predictModelSelect"></select>
+        </div>
+
+        {% for f in features %}
+          <div class="field">
+            <label for="{{ f.name }}">{{ f.label }}</label>
+            <input
+              id="{{ f.name }}"
+              name="{{ f.name }}"
+              type="{{ f.type }}"
+              step="{{ f.step if f.type == 'number' else '' }}"
+              placeholder="{{ f.placeholder }}"
+            />
+          </div>
+        {% endfor %}
+
+        <div class="actions">
+          <button type="button" id="btnPredict">Predict</button>
+        </div>
+
+        <div id="statusBox" class="status muted"></div>
+      </form>
+    </section>
+
+    <!-- TAB 2 -->
+    <section id="tab-result" class="tab-panel">
+      <div class="card">
+        <h2>ผลการทำนาย</h2>
+
+        <div id="predictedBox" class="predicted">
+          <span class="muted">ยังไม่มีผลลัพธ์ (กด Predict ในแท็บฟอร์มก่อน)</span>
+        </div>
+
+        <div id="probTableWrap" style="margin-top:12px;"></div>
+
+        <div style="margin-top:14px;">
+          <h3>ข้อมูลที่ส่งเข้าโมเดล</h3>
+          <pre id="inputJson" class="prebox">-</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3 -->
+    <section id="tab-chart" class="tab-panel">
+      <div class="card">
+        <h2>Probability Bar Chart</h2>
+        <p id="chartHint" class="muted">กด Predict ก่อน แล้วกราฟจะแสดงที่นี่</p>
+        <div class="chartWrap">
+          <canvas id="probChart" height="120"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">
+      <a href="/docs" target="_blank" rel="noreferrer">API Docs</a> ·
+      <a href="/health" target="_blank" rel="noreferrer">Health</a>
+    </div>
+  </div>
+
+  <script>
+    // ---- Tabs ----
+    function openTab(tabId) {
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.getElementById(tabId).classList.add("active");
+      document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add("active");
+    }
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => openTab(btn.dataset.tab));
+    });
+
+    // Collect features
+    const FEATURE_SPECS = {{ features | tojson }};
+    function collectInput() {
+      const input = {};
+      for (const f of FEATURE_SPECS) {
+        const el = document.getElementById(f.name);
+        if (!el) continue;
+
+        const raw = (el.value ?? "").trim();
+        if (raw === "") { input[f.name] = null; continue; }
+
+        if (f.type === "number") {
+          const num = Number(raw);
+          input[f.name] = Number.isFinite(num) ? num : raw;
+        } else {
+          input[f.name] = raw;
+        }
+      }
+      return input;
+    }
+
+    function renderResult(modelKey, predictedClass, probabilities, inputObj) {
+      document.getElementById("predictedBox").innerHTML = `
+        <div class="resultLine">
+          <span>โมเดล:</span>
+          <span class="pill">${modelKey}</span>
+        </div>
+        <div class="resultLine" style="margin-top:8px;">
+          <span>คลาสที่ทำนายได้:</span>
+          <span class="pill">${predictedClass}</span>
+        </div>
+      `;
+      document.getElementById("inputJson").textContent = JSON.stringify(inputObj, null, 2);
+
+      const wrap = document.getElementById("probTableWrap");
+      if (!probabilities || probabilities.length === 0) {
+        wrap.innerHTML = `<p class="muted">โมเดลนี้ไม่มี probability (ไม่มี predict_proba)</p>`;
+        return;
+      }
+
+      const rows = probabilities.map(p => `
+        <tr><td>${p.label}</td><td>${Number(p.probability).toFixed(4)}</td></tr>
+      `).join("");
+
+      wrap.innerHTML = `
+        <h3>ความน่าจะเป็น (Top)</h3>
+        <table>
+          <thead><tr><th>Label</th><th>Probability</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    // Chart
+    let chartInstance = null;
+    function renderChart(probabilities) {
+      const hint = document.getElementById("chartHint");
+      const ctx = document.getElementById("probChart").getContext("2d");
+
+      if (!probabilities || probabilities.length === 0) {
+        hint.textContent = "ไม่มีข้อมูลกราฟ (โมเดลไม่ส่ง probabilities)";
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        return;
+      }
+
+      hint.textContent = "";
+      const labels = probabilities.map(p => String(p.label));
+      const data = probabilities.map(p => Number(p.probability));
+
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: "bar",
+        data: { labels, datasets: [{ label: "Probability", data }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 1 } } }
+      });
+    }
+
+    // ---- Models ----
+    const predictSelect = document.getElementById("predictModelSelect");
+
+    async function loadModels() {
+      const res = await fetch("/api/models");
+      const data = await res.json();
+      const models = data.models || [];
+
+      predictSelect.innerHTML = "";
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m; opt.textContent = m;
+        predictSelect.appendChild(opt);
+      }
+
+      const preferred = models.includes("best_model_job_app")
+        ? "best_model_job_app"
+        : (models[0] || "best_model_job_app");
+
+      predictSelect.value = preferred;
+    }
+
+    // ---- Predict ----
+    const btnPredict = document.getElementById("btnPredict");
+    const statusBox = document.getElementById("statusBox");
+
+    btnPredict.addEventListener("click", async () => {
+      const inputObj = collectInput();
+      const modelKey = predictSelect.value || "best_model_job_app";
+
+      statusBox.textContent = "กำลังเรียก API...";
+      btnPredict.disabled = true;
+
+      try {
+        const res = await fetch("/api/predict", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ input: inputObj, model_key: modelKey, top_k: 5 })
+        });
+
+        const rawText = await res.text();
+        let data;
+        try { data = rawText ? JSON.parse(rawText) : {}; }
+        catch { data = { error: rawText || "Internal Server Error" }; }
+
+        if (!res.ok) {
+          statusBox.textContent = "เกิดข้อผิดพลาด: " + (data.error || "Unknown error");
+          openTab("tab-result");
+          document.getElementById("predictedBox").innerHTML =
+            `<div class="errorBox">❌ ${data.error || "Unknown error"}</div>`;
+          document.getElementById("inputJson").textContent = JSON.stringify(inputObj, null, 2);
+          document.getElementById("probTableWrap").innerHTML = "";
+          renderChart(null);
+          return;
+        }
+
+        statusBox.textContent = "สำเร็จ ✅";
+        renderResult(data.model || modelKey, data.predicted_class, data.probabilities, inputObj);
+        renderChart(data.probabilities);
+        openTab("tab-result");
+
+      } catch (err) {
+        statusBox.textContent = "เรียก API ไม่ได้: " + err;
+      } finally {
+        btnPredict.disabled = false;
+      }
+    });
+
+    loadModels();
+  </script>
+</body>
+</html>

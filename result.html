@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Result</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>ผลการทำนาย</h1>
+
+    {% if error %}
+      <div class="card error">
+        <h2>เกิดข้อผิดพลาด</h2>
+        <p>{{ error }}</p>
+      </div>
+    {% else %}
+      <div class="card">
+        <h2>คลาสที่ทำนายได้: <span class="pill">{{ predicted_class }}</span></h2>
+
+        {% if probabilities %}
+          <h3>Probability (Top)</h3>
+          <table>
+            <thead><tr><th>Label</th><th>Probability</th></tr></thead>
+            <tbody>
+              {% for p in probabilities %}
+                <tr><td>{{ p.label }}</td><td>{{ '%.4f'|format(p.probability) }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="muted">โมเดลไม่มี predict_proba</p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <h3>ข้อมูลที่ส่งเข้าโมเดล</h3>
+      <pre>{{ features | tojson(indent=2) }}</pre>
+    </div>
+
+    <div class="footer">
+      <a href="/">← กลับหน้าแบบฟอร์ม</a>
+    </div>
+  </div>
+</body>
+</html>

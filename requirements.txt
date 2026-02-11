@@ -1,0 +1,14 @@
+fastapi==0.115.6
+uvicorn[standard]==0.30.6
+jinja2==3.1.4
+python-multipart==0.0.9
+
+pandas==2.2.2
+joblib==1.4.2
+
+# ให้ตรงกับโมเดลของคุณ (ในไฟล์โมเดลมีบันทึก _sklearn_version)
+scikit-learn==1.8.0
+
+# ช่วยเรื่องการโหลด joblib ที่อาจพึ่ง numpy รุ่นใหม่
+numpy>=2.0.0
+scipy>=1.13.0

@@ -1,0 +1,304 @@
+:root{
+  --bg:#070a12;
+  --card:#111827;
+  --muted:rgba(255,255,255,0.72);
+  --text:rgba(255,255,255,0.94);
+  --border:rgba(255,255,255,0.14);
+  --accent:#5edcff;
+}
+
+
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  background-color: var(--bg);
+  /* พื้นหลังเข้ม + ลายกริดบาง ๆ เพื่อให้การ์ด/ตัวหนังสือเด่นขึ้น */
+  background-image:
+    radial-gradient(1100px 650px at 10% 0%, rgba(94,220,255,0.18), transparent 55%),
+    radial-gradient(1200px 700px at 95% 10%, rgba(144,97,255,0.14), transparent 55%),
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: auto, auto, 28px 28px, 28px 28px;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+  color: var(--text);
+}
+
+
+.container{
+  max-width: 1100px;
+  margin: 28px auto;
+  padding: 0 16px 40px;
+}
+
+h1{ font-size: 20px; margin: 0 0 14px; line-height:1.35; }
+h2{ font-size: 18px; margin: 0 0 10px; }
+h3{ font-size: 16px; margin: 0; }
+
+.muted{ color: var(--muted); }
+.footer{ margin-top: 18px; color: var(--muted); font-size: 13px; }
+.footer a{ color: var(--accent); text-decoration:none; }
+.footer a:hover{ text-decoration: underline; }
+
+.card{
+  background: rgba(17,24,39,0.97);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 16px;
+  padding: 14px 14px;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+  backdrop-filter: blur(6px);
+  margin: 12px 0;
+}
+
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+@media (max-width: 920px){
+  .grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px){
+  .grid{ grid-template-columns: 1fr; }
+}
+
+.field label{
+  display:block;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: rgba(255,255,255,0.86);
+}
+
+.field input, .field select{
+  width: 100%;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  outline: none;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.94);
+}
+
+.field input:focus, .field select:focus{
+  border-color: rgba(94,220,255,0.55);
+  box-shadow: 0 0 0 3px rgba(94,220,255,0.18);
+}
+
+
+.field input::placeholder{
+  color: rgba(255,255,255,0.45);
+}
+
+.actions{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+button{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.16);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 14px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+button.primary{
+  background: linear-gradient(135deg, rgba(94,220,255,0.22), rgba(144,97,255,0.18));
+  border-color: rgba(94,220,255,0.35);
+}
+
+button.ghost{
+  background: rgba(0,0,0,0.10);
+}
+
+button:disabled{
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status{
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.12);
+  border: 1px solid rgba(255,255,255,0.10);
+  min-width: 220px;
+}
+
+.tabs{
+  display:flex;
+  gap: 8px;
+  margin: 10px 0 8px;
+  flex-wrap: wrap;
+}
+
+.tab-btn{
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.12);
+  color: rgba(255,255,255,0.82);
+}
+
+.tab-btn.active{
+  background: rgba(94,220,255,0.18);
+  border-color: rgba(94,220,255,0.35);
+  color: rgba(255,255,255,0.92);
+}
+
+.tab-panel{ display:none; }
+.tab-panel.active{ display:block; }
+
+.pill{
+  display:inline-flex;
+  align-items:center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  background: rgba(0,0,0,0.14);
+  text-decoration:none;
+  font-size: 13px;
+  height: 34px;
+  margin-top: 22px;
+}
+.pill:hover{
+  border-color: rgba(94,220,255,0.35);
+}
+
+.row{
+  display:flex;
+  align-items:flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.metricsGrid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metricBox{
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.10);
+  padding: 10px 12px;
+}
+
+.metricTitle{
+  font-size: 12px;
+  color: rgba(255,255,255,0.70);
+}
+
+.metricValue{
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.prebox{
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.12);
+  overflow: auto;
+  max-height: 360px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.table{
+  width: 100%;
+  border-collapse: collapse;
+  overflow:hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.table th, .table td{
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 13px;
+}
+
+.table thead th{
+  text-align:left;
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.85);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+.table tbody tr:hover td{
+  background: rgba(94,220,255,0.06);
+}
+
+.resultGrid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 700px){
+  .resultGrid{ grid-template-columns: 1fr; }
+}
+
+.label{
+  color: rgba(255,255,255,0.65);
+  font-size: 12px;
+}
+
+.big{
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+/* --- Confusion Matrix UI --- */
+.cmWrap{ margin-top: 8px; }
+.cmTable{
+  width: 100%;
+  border-collapse: collapse;
+  overflow:hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.cmTable th, .cmTable td{
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 13px;
+}
+.cmTable thead th{
+  text-align: center;
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.85);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+.cmCorner{ text-align:left !important; }
+.cmRowHead{
+  text-align:left;
+  background: rgba(255,255,255,0.03);
+}
+.cmCell{
+  text-align:center;
+  font-variant-numeric: tabular-nums;
+}
+.cmBlock{ margin-top: 6px; }
+
+/* ---- per-class table ---- */
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- History (ประวัติการพัฒนา) ---- */
+.historyList{ list-style:none; padding:0; margin:0; display:grid; gap:10px; }
+.historyItem{ padding:10px 12px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; background: rgba(255,255,255,0.03); }
+.historyDate{ display:inline-block; font-size:12px; opacity:0.8; margin-right:8px; }
+.historyAction{ font-weight:600; margin-top:2px; }
+.historyDetail{ margin-top:4px; font-size:13px; }
